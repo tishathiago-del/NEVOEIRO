@@ -14,14 +14,13 @@
 
     <style>
         :root {
-            --primary: #fbbf24; --success: #10b981; --danger: #ef4444; --info: #60a5fa;
+            --primary: #fbbf24; --success: #10b981; --danger: #ef4444; --info: #60a5fa; --warning: #f97316;
             --bg-glass: rgba(15, 23, 42, 0.95); --border: rgba(255, 255, 255, 0.1);
         }
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
-        body { margin: 0; min-height: 100vh; color: #fff; background: #000; display: flex; flex-direction: column; align-items: center; overflow-x: hidden; transition: background 0.2s; }
+        body { margin: 0; min-height: 100vh; color: #fff; background: #000; display: flex; flex-direction: column; align-items: center; overflow-x: hidden; }
         .bg-fixed { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8)), url('https://images.pexels.com/photos/4483610/pexels-photo-4483610.jpeg') center/cover; z-index: -1; }
         
-        /* Check Overlay Visual */
         #check-overlay { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0); font-size: 150px; color: var(--success); z-index: 9999; pointer-events: none; opacity: 0; }
         .animate-check { animation: scaleCheck 0.6s ease-out forwards; }
         @keyframes scaleCheck { 0% { transform: translate(-50%, -50%) scale(0); opacity: 0; } 50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
@@ -31,31 +30,23 @@
         .search-input { flex: 1; background: var(--bg-glass); border: 1px solid var(--border); padding: 12px; border-radius: 10px; color: #fff; font-size: 16px; outline: none; }
         .search-btn { background: var(--primary); border: none; padding: 0 15px; border-radius: 10px; font-weight: 800; cursor: pointer; color: #000; }
 
-        #welcome-container { background: var(--bg-glass); border: 1px solid var(--border); padding: 15px 25px; border-radius: 1.5rem; margin: 15px 0; display: inline-block; backdrop-filter: blur(10px); }
-        #welcome-msg { font-size: 1rem; color: #cbd5e1; }
-        #welcome-msg b { color: var(--primary); font-weight: 800; }
-
         #login-screen { margin-top: 10vh; background: var(--bg-glass); padding: 3rem; border-radius: 2rem; border: 1px solid var(--border); width: 90%; max-width: 400px; text-align: center; z-index: 10; }
         #main-content { display: none; width: 100%; max-width: 1100px; padding: 10px; text-align: center; }
 
-        .stats-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 1rem; width: 100%; }
-        .stat-card { background: var(--bg-glass); padding: 1rem; border-radius: 1.2rem; border: 1px solid var(--border); }
-        .stat-val { font-size: 1.2rem; font-weight: 800; display: block; }
-        .stat-label { font-size: 0.6rem; color: #94a3b8; text-transform: uppercase; }
+        .stats-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 1rem; width: 100%; }
+        .stat-card { background: var(--bg-glass); padding: 0.8rem; border-radius: 1.2rem; border: 1px solid var(--border); }
+        .stat-val { font-size: 1.1rem; font-weight: 800; display: block; }
+        .stat-label { font-size: 0.55rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+
+        .tabs { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; margin-bottom: -1px; }
+        .tab-btn { background: rgba(15, 23, 42, 0.6); padding: 12px 18px; border: 1px solid var(--border); border-radius: 10px 10px 0 0; color: #94a3b8; cursor: pointer; font-size: 0.75rem; white-space: nowrap; }
+        .tab-btn.active { background: var(--bg-glass); color: var(--primary); border-top: 2px solid var(--primary); }
+        
+        textarea { width: 100%; height: 350px; resize: none; border-radius: 0 1rem 1rem 1rem; font-size: 16px; padding: 15px; background: rgba(0,0,0,0.6); color: #fff; border: 1px solid var(--border); display: none; outline: none; }
+        textarea.active { display: block; }
 
         .actions-bar { background: var(--bg-glass); padding: 15px; border-radius: 1rem; border: 1px solid var(--border); margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
         .btn-action { background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 0.65rem; font-weight: 800; cursor: pointer; text-transform: uppercase; }
-
-        .tabs { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; }
-        .tab-btn { background: rgba(15, 23, 42, 0.6); padding: 12px 18px; border: 1px solid var(--border); border-bottom: none; border-radius: 10px 10px 0 0; color: #94a3b8; cursor: pointer; font-size: 0.75rem; white-space: nowrap; }
-        .tab-btn.active { background: var(--bg-glass); color: var(--primary); border-top: 2px solid var(--primary); }
-        
-        textarea { width: 100%; height: 350px; resize: none; border-radius: 0 1rem 1rem 1rem; font-size: 16px; padding: 15px; background: rgba(0,0,0,0.6); color: #fff; border: 1px solid var(--border); display: none; outline: none; text-align: left; }
-        textarea.active { display: block; }
-
-        #floating-chat { position: fixed; bottom: 20px; right: 20px; width: 320px; height: 35px; background: var(--bg-glass); border: 1px solid var(--border); border-radius: 1rem; display: none; flex-direction: column; z-index: 2000; overflow: hidden; transition: 0.3s; }
-        #chat-messages { flex-grow: 1; overflow-y: auto; padding: 10px; font-size: 0.75rem; display: flex; flex-direction: column; gap: 8px; }
-        .msg-box { padding: 8px; border-radius: 8px; background: rgba(255,255,255,0.05); text-align: left; }
     </style>
 </head>
 <body onclick="startAudioContext()">
@@ -88,33 +79,21 @@
 
     <div id="reader"></div>
 
-    <div id="welcome-container"><div id="welcome-msg"></div></div>
-    
-    <div class="stats-container">
-        <div class="stat-card"><span class="stat-label">Bipados</span><span class="stat-val" id="count-v" style="color:var(--success)">0 / 0</span></div>
+    <div class="stats-container" style="margin-top: 20px;">
+        <div class="stat-card"><span class="stat-label">Bipados (Viagem)</span><span class="stat-val" id="count-v" style="color:var(--success)">0 / 0</span></div>
         <div class="stat-card"><span class="stat-label">Pendentes</span><span class="stat-val" id="count-p" style="color:var(--info)">0</span></div>
+        <div class="stat-card"><span class="stat-label">Fora da Viagem</span><span class="stat-val" id="count-errados" style="color:var(--danger)">0</span></div>
         <div class="stat-card"><span class="stat-label">Ritmo/Hora</span><span class="stat-val" id="count-ritmo" style="color:#a855f7">0</span></div>
     </div>
 
     <div class="actions-bar">
         <button class="btn-action" style="background:var(--success); color:#000" onclick="enviarRelatorioMaster()">📧 RELATÓRIO MASTER</button>
+        <button class="btn-action" style="color:var(--info)" onclick="exportarRelatorioCompleto()">📦 EXPORTAR TXT</button>
         <button id="btn-zerar" class="btn-action" style="color:var(--danger)" onclick="limparSistema()">🛑 ZERAR</button>
-        <button class="btn-action" style="color:var(--info)" onclick="exportarPendenciasGlobais()">📦 PENDÊNCIAS</button>
     </div>
 
     <div class="tabs" id="tabContainer"></div>
     <div id="textareas-container"></div>
-</div>
-
-<div id="floating-chat">
-    <div style="padding:10px; font-size:0.7rem; font-weight:800; display:flex; justify-content:space-between; border-bottom:1px solid var(--border);">
-        <span>CHAT</span><button onclick="toggleChat()" style="background:none; border:none; color:#fff;">_</button>
-    </div>
-    <div id="chat-messages"></div>
-    <div style="padding:5px; display:flex; gap:3px;">
-        <input type="text" id="chat-input" style="flex:1; background:#000; color:#fff; border:1px solid var(--border); border-radius:5px; padding:5px;">
-        <button onclick="enviarMensagem()" style="background:var(--primary); border:none; border-radius:5px; padding:5px 10px;">></button>
-    </div>
 </div>
 
 <script>
@@ -142,17 +121,17 @@ async function toggleCamera() {
                 if(!area.value.includes(code)) {
                     area.value += (area.value ? "\n" : "") + code;
                     area.dispatchEvent(new Event('input'));
-                    verificarBip(code);
-                    // Confirmação Visual Check
+                    
                     const check = document.getElementById('check-overlay');
                     check.classList.remove('animate-check');
                     void check.offsetWidth;
                     check.classList.add('animate-check');
                     if(navigator.vibrate) navigator.vibrate(100);
+                    verificarBip(code);
                 }
             }
         });
-    } catch (err) { alert("Erro de Câmera: Use HTTPS no GitHub Pages."); readerDiv.style.display = 'none'; }
+    } catch (err) { alert("Use HTTPS para câmera."); readerDiv.style.display = 'none'; }
 }
 
 function fazerLogin() {
@@ -161,8 +140,6 @@ function fazerLogin() {
     if(logins[u] === p) {
         me = u; document.getElementById('login-screen').style.display = 'none';
         document.getElementById('main-content').style.display = 'block';
-        document.getElementById('floating-chat').style.display = 'flex';
-        document.getElementById('welcome-msg').innerHTML = `Olá <b>${me}</b>!`;
         abaAtiva = (u === 'CRISOPOLIS' || u === 'RIO REAL') ? u : 'APORA-ITAMIRA';
         inicializar();
     } else alert("Senha incorreta!");
@@ -193,22 +170,69 @@ function mudarAba(c) {
 
 function processarTudo() {
     cidades.forEach(c => metaGlobalCidades[c] = new Set());
-    const esp = document.getElementById('txt-ESPELHO').value.split('\n');
-    esp.forEach(ln => {
+    const espVal = document.getElementById('txt-ESPELHO').value;
+    const espLns = espVal.split('\n');
+    
+    // Alimenta as metas baseadas no ESPELHO
+    espLns.forEach(ln => {
         let br = ln.match(/BR[A-Z0-9]+/i), num = ln.replace(/\D/g, "");
         if(br) {
             let code = br[0].toUpperCase();
             for(let cid in mapaCeps) { mapaCeps[cid].forEach(cep => { if(num.includes(cep)) metaGlobalCidades[cid].add(code); }); }
         }
     });
+
     if(abaAtiva !== 'ESPELHO') {
         const meuTxt = document.getElementById('txt-'+abaAtiva).value.toUpperCase();
-        let v = 0; metaGlobalCidades[abaAtiva].forEach(code => { if(meuTxt.includes(code)) v++; });
-        document.getElementById('count-v').innerText = `${v} / ${metaGlobalCidades[abaAtiva].size}`;
-        document.getElementById('count-p').innerText = metaGlobalCidades[abaAtiva].size - v;
+        const bipsNaAba = meuTxt.match(/BR[A-Z0-9]+/g) || [];
+        const setBipsNaAba = new Set(bipsNaAba);
+        
+        let corretos = 0, errados = 0;
+        setBipsNaAba.forEach(code => {
+            if(metaGlobalCidades[abaAtiva].has(code)) corretos++;
+            else errados++;
+        });
+
+        document.getElementById('count-v').innerText = `${corretos} / ${metaGlobalCidades[abaAtiva].size}`;
+        document.getElementById('count-p').innerText = metaGlobalCidades[abaAtiva].size - corretos;
+        document.getElementById('count-errados').innerText = errados;
     }
     const agora = Date.now(); bipsRecentes = bipsRecentes.filter(t => agora - t < 3600000);
     document.getElementById('count-ritmo').innerText = bipsRecentes.length;
+}
+
+function exportarRelatorioCompleto() {
+    let rel = `RELATÓRIO NEVOEIRO - ${me}\nDATA: ${new Date().toLocaleString()}\n\n`;
+    cidades.forEach(cid => {
+        if(cid === 'ESPELHO') return;
+        const txt = document.getElementById('txt-'+cid).value.toUpperCase();
+        const bips = txt.match(/BR[A-Z0-9]+/g) || [];
+        const meta = metaGlobalCidades[cid];
+        
+        const listaCorretos = bips.filter(b => meta.has(b));
+        const listaErrados = bips.filter(b => !meta.has(b));
+
+        rel += `=== ${cid} ===\n`;
+        rel += `CORRETOS NA VIAGEM: ${listaCorretos.length}\n`;
+        rel += `FORA DA VIAGEM ATUAL: ${listaErrados.length}\n`;
+        rel += `PONTOS PENDENTES: ${meta.size - listaCorretos.length}\n\n`;
+        rel += `> TODOS OS CÓDIGOS BIPADOS NESTA ABA:\n${bips.join('\n')}\n\n`;
+    });
+    const blob = new Blob([rel], {type:'text/plain'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `Relatorio_Nevoeiro_${me}.txt`; a.click();
+}
+
+function enviarRelatorioMaster() {
+    let corpo = `MASTER - OPERADOR ${me}\n`;
+    cidades.forEach(cid => {
+        if(cid === 'ESPELHO') return;
+        const txt = document.getElementById('txt-'+cid).value.toUpperCase();
+        const bips = (txt.match(/BR[A-Z0-9]+/g) || []).length;
+        corpo += `${cid}: ${bips} bips totais.\n`;
+    });
+    emailjs.send("service_mzyqj81", "template_d52csff", { usuario: me, data: "RESUMO TOTAL", conteudo: corpo })
+    .then(() => alert("Master Enviado!"));
 }
 
 function conectarDados() {
@@ -222,40 +246,27 @@ function conectarDados() {
     });
 }
 
-function verificarBip(codigo) {
+function verificarBip(code) {
     const espelho = document.getElementById('txt-ESPELHO').value.toUpperCase();
-    if(!espelho.includes(codigo)) { playSound('error'); }
-    else if(metaGlobalCidades[abaAtiva]?.has(codigo)) { playSound('success'); }
-    else { playSound('error'); }
+    if(metaGlobalCidades[abaAtiva]?.has(code)) playSound('success');
+    else playSound('error');
 }
 
 function playSound(type) {
     if (!audioCtx) return;
     const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
     osc.connect(gain); gain.connect(audioCtx.destination);
-    osc.frequency.setValueAtTime(type === 'success' ? 1000 : 200, audioCtx.currentTime);
-    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-    osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+    osc.frequency.setValueAtTime(type === 'success' ? 1000 : 250, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    osc.start(); osc.stop(audioCtx.currentTime + 0.15);
 }
 
-function enviarRelatorioMaster() {
-    let corpo = `RELATÓRIO NEVOEIRO\nOPERADOR: ${me}\n\n`;
-    cidades.forEach(cid => {
-        if(cid === 'ESPELHO') return;
-        const total = metaGlobalCidades[cid].size, txt = document.getElementById('txt-'+cid).value.toUpperCase();
-        const bipados = Array.from(metaGlobalCidades[cid]).filter(x => txt.includes(x)).length;
-        corpo += `${cid}: ${bipados}/${total}\n`;
-    });
-    emailjs.send("service_mzyqj81", "template_d52csff", { usuario: me, data: "MASTER", conteudo: corpo })
-    .then(() => alert("Relatório Master Enviado!"));
-}
-
-function toggleChat() { const c = document.getElementById('floating-chat'); c.style.height = c.style.height === '35px' ? '300px' : '35px'; }
 function buscarCodigoGlobal() {
     const q = document.getElementById('global-search').value.toUpperCase().trim();
     if(!q) return;
     cidades.forEach(c => { if(document.getElementById('txt-'+c).value.toUpperCase().includes(q)) { alert("Encontrado em: " + c); mudarAba(c); } });
 }
+
 function limparSistema() { if(prompt("Senha:") === "0721") { cidades.forEach(c => db.ref('monitor/'+c).set({texto: ""})); alert("Zerado."); } }
 </script>
 </body>
