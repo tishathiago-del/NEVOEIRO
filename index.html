@@ -44,11 +44,11 @@
         .tabs { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; }
         .tab-btn { background: rgba(15, 23, 42, 0.6); padding: 12px 18px; border: 1px solid var(--border); border-radius: 10px 10px 0 0; color: #94a3b8; cursor: pointer; font-size: 0.75rem; white-space: nowrap; }
         .tab-btn.active { background: var(--bg-glass); color: var(--primary); border-top: 2px solid var(--primary); }
-        textarea { width: 100%; height: 350px; resize: none; border-radius: 0 1rem 1rem 1rem; font-size: 16px; padding: 15px; background: rgba(0,0,0,0.6); color: #fff; border: 1px solid var(--border); display: none; outline: none; }
-        textarea.active { display: block; }
+        textarea { width: 100%; height: 350px; resize: none; border-radius: 0 1rem 1rem 1rem; font-size: 16px; padding: 15px; background: rgba(0,0,0,0.6); color: #fff; border: 1px solid var(--border); display: block; outline: none; }
+        textarea:not(.active) { display: none; }
     </style>
 </head>
-<body onload="verificarLoginSalvo()" onclick="ativarSonsVibracao()">
+<body onload="verificarLoginSalvo()" onclick="ativarHardware()">
 
 <div id="check-overlay">✔</div>
 <div class="bg-fixed"></div>
@@ -99,14 +99,15 @@ let audioCtx = null, html5QrCode = null, me = "", abaAtiva = "", bipsRecentes = 
 const mapaCeps = { "CONDE": ["48300000"], "CRISOPOLIS": ["48480000", "48483000"], "ACAJUTIBA": ["48360000"], "APORA-ITAMIRA": ["48350000", "48355000"], "JANDAIRA": ["48310000"], "RIO REAL": ["48330000"] };
 const cidades = [...Object.keys(mapaCeps), 'ESPELHO'];
 let metaGlobalCidades = {};
+let valorAntigo = "";
 
 const config = { apiKey: "AIzaSyDXtVIZkiGcTU_uvbsFEkZDDjTKoo6aWak", databaseURL: "https://base-de-dados-nevoeiro-default-rtdb.firebaseio.com", projectId: "base-de-dados-nevoeiro" };
 firebase.initializeApp(config);
 const db = firebase.database();
 
-function ativarSonsVibracao() {
+function ativarHardware() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if ("vibrate" in navigator) navigator.vibrate(10);
+    if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
 }
 
 function verificarLoginSalvo() {
@@ -116,7 +117,7 @@ function verificarLoginSalvo() {
 
 function fazerLogin() {
     const u = document.getElementById('user-select').value, p = document.getElementById('pass-input').value;
-    const logins = { "THIAGO":"270219", "SAMUEL":"2804", "BRUNO":"1010", "ALEXANDRE":"0000", "CRISOPOLIS":"2525", "RIO REAL":"3510" };
+    const logins = { "THIAGO":"270219", "SAMUEL":"2804", "BRUNO":"1010", "ALEXANDRE":"0000", "CRISOPOLIS":"2525", "RIO REAL":"3510", "ANDREY":"1212" };
     if(logins[u] === p) {
         me = u; localStorage.setItem('userNevoeiro', u); entrarNoSistema();
     } else alert("Senha incorreta!");
@@ -125,7 +126,7 @@ function fazerLogin() {
 function logout() { localStorage.removeItem('userNevoeiro'); location.reload(); }
 
 async function toggleCamera() {
-    ativarSonsVibracao();
+    ativarHardware();
     const readerDiv = document.getElementById('reader');
     if (html5QrCode && html5QrCode.getState() === 2) { await html5QrCode.stop(); readerDiv.style.display = 'none'; return; }
     readerDiv.style.display = 'block';
@@ -135,9 +136,9 @@ async function toggleCamera() {
         if(code.startsWith("BR")) {
             let area = document.getElementById(`txt-${abaAtiva}`);
             if(!area.value.includes(code)) {
-                if ("vibrate" in navigator) navigator.vibrate(400); 
+                if (navigator.vibrate) navigator.vibrate(400); 
                 area.value += (area.value ? "\n" : "") + code;
-                area.dispatchEvent(new Event('input'));
+                db.ref('monitor/'+abaAtiva).set({texto: area.value, user: me});
                 verificarBip(code);
                 const check = document.getElementById('check-overlay');
                 check.classList.remove('animate-check');
@@ -170,10 +171,7 @@ function playSound() {
 function falar(t) {
     window.speechSynthesis.cancel(); 
     const m = new SpeechSynthesisUtterance(t);
-    m.lang = 'pt-BR'; 
-    m.rate = 1.7; // VELOCIDADE MÁXIMA PARA NÃO ATRASAR
-    m.pitch = 1.0;
-    window.speechSynthesis.speak(m);
+    m.lang = 'pt-BR'; m.rate = 1.8; window.speechSynthesis.speak(m);
 }
 
 function inicializar() {
@@ -183,11 +181,55 @@ function inicializar() {
         if((me === 'CRISOPOLIS' || me === 'RIO REAL') && (c !== me && c !== 'ESPELHO')) return;
         const btn = document.createElement('button'); btn.className = 'tab-btn'; btn.id = `btn-${c}`; btn.innerText = c;
         btn.onclick = () => mudarAba(c); document.getElementById('tabContainer').appendChild(btn);
-        const txt = document.createElement('textarea'); txt.id = `txt-${c}`;
-        txt.oninput = () => { db.ref('monitor/'+c).set({texto: txt.value, user: me}); processarTudo(); bipsRecentes.push(Date.now()); };
+        
+        const txt = document.createElement('textarea'); 
+        txt.id = `txt-${c}`;
+        
+        txt.onfocus = (e) => { valorAntigo = e.target.value; };
+
+        txt.onchange = (e) => {
+            const novoTexto = e.target.value;
+            const bipsAntigos = valorAntigo.match(/BR[A-Z0-9]+/g) || [];
+            const bipsNovos = novoTexto.match(/BR[A-Z0-9]+/g) || [];
+            
+            let códigosRemovidos = [];
+            bipsAntigos.forEach(code => {
+                if(metaGlobalCidades[c]?.has(code) && !bipsNovos.includes(code)) {
+                    códigosRemovidos.push(code);
+                }
+            });
+
+            if(códigosRemovidos.length > 0) {
+                if(me === "THIAGO" || me === "SAMUEL") {
+                    let motivo = prompt("ATENÇÃO: Você está removendo pacotes CORRETOS (" + códigosRemovidos.join(", ") + "). Digite o motivo para autorizar:");
+                    if(motivo && motivo.trim().length > 3) {
+                        enviarAlertaEmail(me, c, códigosRemovidos.join(", "), motivo);
+                        db.ref('monitor/'+c).set({texto: novoTexto, user: me});
+                        alert("Alteração autorizada e registrada.");
+                    } else {
+                        alert("Ação negada. Motivo obrigatório e detalhado.");
+                        e.target.value = valorAntigo;
+                    }
+                } else {
+                    alert("BLOQUEIO: Apenas THIAGO ou SAMUEL podem remover pacotes que constam no espelho.");
+                    e.target.value = valorAntigo;
+                }
+            } else {
+                // Se não apagou nada do espelho (ou apenas apagou errados), salva direto
+                db.ref('monitor/'+c).set({texto: novoTexto, user: me});
+            }
+        };
+
         document.getElementById('textareas-container').appendChild(txt);
     });
     mudarAba(abaAtiva); conectarDados();
+}
+
+function enviarAlertaEmail(quem, onde, oque, porque) {
+    emailjs.send("service_mzyqj81", "template_d52csff", { 
+        usuario: quem, 
+        conteudo: `ALERTA DE EXCLUSÃO MANUAL\nOperador: ${quem}\nCidade: ${onde}\nPacotes removidos: ${oque}\nJustificativa: ${porque}` 
+    }).then(() => console.log("Email enviado"));
 }
 
 function mudarAba(c) {
@@ -201,7 +243,7 @@ function mudarAba(c) {
 
 function processarTudo() {
     cidades.forEach(c => metaGlobalCidades[c] = new Set());
-    const espVal = document.getElementById('txt-ESPELHO').value;
+    const espVal = document.getElementById('txt-ESPELHO')?.value || "";
     espVal.split('\n').forEach(ln => {
         let br = ln.match(/BR[A-Z0-9]+/i), num = ln.replace(/\D/g, "");
         if(br) {
@@ -210,17 +252,16 @@ function processarTudo() {
         }
     });
     if(abaAtiva !== 'ESPELHO') {
-        const meuTxt = document.getElementById('txt-'+abaAtiva).value.toUpperCase();
+        const meuTxt = document.getElementById('txt-'+abaAtiva)?.value.toUpperCase() || "";
         const bips = meuTxt.match(/BR[A-Z0-9]+/g) || [];
         const setBips = new Set(bips);
-        let corr = 0, err = 0;
-        setBips.forEach(code => { if(metaGlobalCidades[abaAtiva].has(code)) corr++; else err++; });
-        document.getElementById('count-v').innerText = `${corr} / ${metaGlobalCidades[abaAtiva].size}`;
-        document.getElementById('count-p').innerText = metaGlobalCidades[abaAtiva].size - corr;
-        document.getElementById('count-errados').innerText = err;
+        let corr = 0;
+        setBips.forEach(code => { if(metaGlobalCidades[abaAtiva]?.has(code)) corr++; });
+        
+        document.getElementById('count-v').innerText = `${corr} / ${metaGlobalCidades[abaAtiva]?.size || 0}`;
+        document.getElementById('count-p').innerText = (metaGlobalCidades[abaAtiva]?.size || 0) - corr;
+        document.getElementById('count-errados').innerText = bips.length - corr;
     }
-    const ag = Date.now(); bipsRecentes = bipsRecentes.filter(t => ag - t < 3600000);
-    document.getElementById('count-ritmo').innerText = bipsRecentes.length;
 }
 
 function exportarRelatorioCompleto() {
@@ -236,13 +277,13 @@ function exportarRelatorioCompleto() {
 }
 
 function enviarRelatorioMaster() {
-    let corpo = `MASTER - ${me}\n`;
+    let corpo = `RESUMO MASTER - ${me}\n`;
     cidades.forEach(cid => {
         if(cid === 'ESPELHO') return;
         const bips = (document.getElementById('txt-'+cid).value.toUpperCase().match(/BR[A-Z0-9]+/g) || []).length;
         corpo += `${cid}: ${bips} bips.\n`;
     });
-    emailjs.send("service_mzyqj81", "template_d52csff", { usuario: me, conteudo: corpo }).then(() => alert("Enviado!"));
+    emailjs.send("service_mzyqj81", "template_d52csff", { usuario: me, conteudo: corpo }).then(() => alert("Relatório Master Enviado!"));
 }
 
 function conectarDados() {
@@ -250,7 +291,9 @@ function conectarDados() {
         const d = snap.val();
         cidades.forEach(c => {
             const el = document.getElementById(`txt-${c}`);
-            if(el && d && d[c] && document.activeElement !== el) el.value = d[c].texto;
+            if(el && d && d[c] && document.activeElement !== el) {
+                el.value = d[c].texto;
+            }
         });
         processarTudo();
     });
