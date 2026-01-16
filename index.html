@@ -87,7 +87,8 @@
     <div class="actions-bar">
         <button class="btn-action" style="background:var(--success); color:#000" onclick="enviarRelatorioMaster()">📧 MASTER</button>
         <button class="btn-action" style="color:var(--info)" onclick="exportarRelatorioCompleto()">📦 TXT</button>
-        <button class="btn-action" style="background:var(--danger); color:#fff" onclick="logout()">🚪 SAIR</button>
+        <button class="btn-action" style="background:var(--danger); color:#fff" onclick="apagarDadosComBackup()">🔥 APAGAR DADOS</button>
+        <button class="btn-action" style="background:#334155; color:#fff" onclick="logout()">🚪 SAIR</button>
     </div>
 
     <div class="tabs" id="tabContainer"></div>
@@ -144,6 +145,7 @@ async function toggleCamera() {
                 check.classList.remove('animate-check');
                 void check.offsetWidth;
                 check.classList.add('animate-check');
+                bipsRecentes.push(Date.now());
             }
         }
     });
@@ -184,52 +186,71 @@ function inicializar() {
         
         const txt = document.createElement('textarea'); 
         txt.id = `txt-${c}`;
-        
         txt.onfocus = (e) => { valorAntigo = e.target.value; };
-
-        txt.onchange = (e) => {
-            const novoTexto = e.target.value;
-            const bipsAntigos = valorAntigo.match(/BR[A-Z0-9]+/g) || [];
-            const bipsNovos = novoTexto.match(/BR[A-Z0-9]+/g) || [];
-            
-            let códigosRemovidos = [];
-            bipsAntigos.forEach(code => {
-                if(metaGlobalCidades[c]?.has(code) && !bipsNovos.includes(code)) {
-                    códigosRemovidos.push(code);
-                }
-            });
-
-            if(códigosRemovidos.length > 0) {
-                if(me === "THIAGO" || me === "SAMUEL") {
-                    let motivo = prompt("ATENÇÃO: Você está removendo pacotes CORRETOS (" + códigosRemovidos.join(", ") + "). Digite o motivo para autorizar:");
-                    if(motivo && motivo.trim().length > 3) {
-                        enviarAlertaEmail(me, c, códigosRemovidos.join(", "), motivo);
-                        db.ref('monitor/'+c).set({texto: novoTexto, user: me});
-                        alert("Alteração autorizada e registrada.");
-                    } else {
-                        alert("Ação negada. Motivo obrigatório e detalhado.");
-                        e.target.value = valorAntigo;
-                    }
-                } else {
-                    alert("BLOQUEIO: Apenas THIAGO ou SAMUEL podem remover pacotes que constam no espelho.");
-                    e.target.value = valorAntigo;
-                }
-            } else {
-                // Se não apagou nada do espelho (ou apenas apagou errados), salva direto
-                db.ref('monitor/'+c).set({texto: novoTexto, user: me});
-            }
-        };
+        txt.onchange = (e) => lidarComAlteracaoManual(e, c);
 
         document.getElementById('textareas-container').appendChild(txt);
     });
     mudarAba(abaAtiva); conectarDados();
 }
 
+function lidarComAlteracaoManual(e, cidadeAlvo) {
+    const novoTexto = e.target.value;
+    const bipsAntigos = valorAntigo.match(/BR[A-Z0-9]+/g) || [];
+    const bipsNovos = novoTexto.match(/BR[A-Z0-9]+/g) || [];
+    
+    let códigosRemovidos = [];
+    bipsAntigos.forEach(code => {
+        if(metaGlobalCidades[cidadeAlvo]?.has(code) && !bipsNovos.includes(code)) {
+            códigosRemovidos.push(code);
+        }
+    });
+
+    if(códigosRemovidos.length > 0) {
+        if(me === "THIAGO" || me === "SAMUEL") {
+            let motivo = prompt("ATENÇÃO: Você está removendo pacotes CORRETOS (" + códigosRemovidos.join(", ") + "). Digite o motivo:");
+            if(motivo && motivo.trim().length > 3) {
+                enviarAlertaEmail(me, cidadeAlvo, códigosRemovidos.join(", "), motivo);
+                db.ref('monitor/'+cidadeAlvo).set({texto: novoTexto, user: me});
+            } else {
+                alert("Ação negada. Justificativa obrigatória.");
+                e.target.value = valorAntigo;
+            }
+        } else {
+            alert("BLOQUEIO: Apenas THIAGO ou SAMUEL podem remover pacotes do espelho.");
+            e.target.value = valorAntigo;
+        }
+    } else {
+        db.ref('monitor/'+cidadeAlvo).set({texto: novoTexto, user: me});
+    }
+}
+
 function enviarAlertaEmail(quem, onde, oque, porque) {
     emailjs.send("service_mzyqj81", "template_d52csff", { 
         usuario: quem, 
-        conteudo: `ALERTA DE EXCLUSÃO MANUAL\nOperador: ${quem}\nCidade: ${onde}\nPacotes removidos: ${oque}\nJustificativa: ${porque}` 
-    }).then(() => console.log("Email enviado"));
+        conteudo: `EXCLUSÃO MANUAL: ${oque}\nLocal: ${onde}\nMotivo: ${porque}` 
+    });
+}
+
+function apagarDadosComBackup() {
+    if(!confirm("Deseja FINALIZAR a viagem? O sistema vai baixar o arquivo, enviar e-mail com todos os BRs e limpar tudo.")) return;
+    if(prompt("Digite a senha master para limpar:") !== "0721") { alert("Senha incorreta!"); return; }
+
+    // 1. Baixa o arquivo TXT
+    exportarRelatorioCompleto();
+
+    // 2. Envia o relatório Master detalhado por e-mail
+    enviarRelatorioMaster();
+
+    // 3. Limpa o Banco de Dados
+    cidades.forEach(c => {
+        db.ref('monitor/'+c).set({texto: "", user: me});
+        const el = document.getElementById(`txt-${c}`);
+        if(el) el.value = "";
+    });
+
+    alert("Viagem finalizada com sucesso!");
+    processarTudo();
 }
 
 function mudarAba(c) {
@@ -257,15 +278,16 @@ function processarTudo() {
         const setBips = new Set(bips);
         let corr = 0;
         setBips.forEach(code => { if(metaGlobalCidades[abaAtiva]?.has(code)) corr++; });
-        
         document.getElementById('count-v').innerText = `${corr} / ${metaGlobalCidades[abaAtiva]?.size || 0}`;
         document.getElementById('count-p').innerText = (metaGlobalCidades[abaAtiva]?.size || 0) - corr;
         document.getElementById('count-errados').innerText = bips.length - corr;
     }
+    const ag = Date.now(); bipsRecentes = bipsRecentes.filter(t => ag - t < 3600000);
+    document.getElementById('count-ritmo').innerText = bipsRecentes.length;
 }
 
 function exportarRelatorioCompleto() {
-    let rel = `RELATÓRIO - ${me}\n\n`;
+    let rel = `RELATÓRIO FINAL - ${me} - ${new Date().toLocaleString()}\n\n`;
     cidades.forEach(cid => {
         if(cid === 'ESPELHO') return;
         const bips = document.getElementById('txt-'+cid).value.toUpperCase().match(/BR[A-Z0-9]+/g) || [];
@@ -273,17 +295,25 @@ function exportarRelatorioCompleto() {
     });
     const blob = new Blob([rel], {type:'text/plain'});
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `Relatorio_${me}.txt`; a.click();
+    a.download = `Final_Nevoeiro_${me}.txt`; a.click();
 }
 
 function enviarRelatorioMaster() {
-    let corpo = `RESUMO MASTER - ${me}\n`;
+    let corpo = `RELATÓRIO DETALHADO - ${me}\nFECHAMENTO: ${new Date().toLocaleString()}\n\n`;
     cidades.forEach(cid => {
         if(cid === 'ESPELHO') return;
-        const bips = (document.getElementById('txt-'+cid).value.toUpperCase().match(/BR[A-Z0-9]+/g) || []).length;
-        corpo += `${cid}: ${bips} bips.\n`;
+        const bips = document.getElementById('txt-'+cid).value.toUpperCase().match(/BR[A-Z0-9]+/g) || [];
+        corpo += `=== ${cid} (${bips.length} bips) ===\n`;
+        corpo += bips.length > 0 ? bips.join('\n') : "Nenhum pacote bipado";
+        corpo += `\n\n`;
     });
-    emailjs.send("service_mzyqj81", "template_d52csff", { usuario: me, conteudo: corpo }).then(() => alert("Relatório Master Enviado!"));
+    
+    emailjs.send("service_mzyqj81", "template_d52csff", { 
+        usuario: me, 
+        conteudo: corpo 
+    }).then(() => {
+        console.log("Relatório completo enviado para o e-mail.");
+    });
 }
 
 function conectarDados() {
@@ -291,9 +321,7 @@ function conectarDados() {
         const d = snap.val();
         cidades.forEach(c => {
             const el = document.getElementById(`txt-${c}`);
-            if(el && d && d[c] && document.activeElement !== el) {
-                el.value = d[c].texto;
-            }
+            if(el && d && d[c] && document.activeElement !== el) el.value = d[c].texto;
         });
         processarTudo();
     });
