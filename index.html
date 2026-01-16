@@ -141,14 +141,18 @@ async function toggleCamera() {
                 area.value += (area.value ? "\n" : "") + code;
                 db.ref('monitor/'+abaAtiva).set({texto: area.value, user: me});
                 verificarBip(code);
-                const check = document.getElementById('check-overlay');
-                check.classList.remove('animate-check');
-                void check.offsetWidth;
-                check.classList.add('animate-check');
+                mostrarCheck();
                 bipsRecentes.push(Date.now());
             }
         }
     });
+}
+
+function mostrarCheck() {
+    const check = document.getElementById('check-overlay');
+    check.classList.remove('animate-check');
+    void check.offsetWidth;
+    check.classList.add('animate-check');
 }
 
 function verificarBip(code) {
@@ -225,47 +229,42 @@ function lidarComAlteracaoManual(e, cidadeAlvo) {
     }
 }
 
-// FUNÇÃO CENTRALIZADA DE ENVIO DE E-MAIL
+// FUNÇÃO DE ENVIO COM RETORNO AO USUÁRIO
 function enviarRelatorioAoEmail(textoParaEnviar) {
-    console.log("Iniciando envio para o EmailJS...");
+    console.log("Enviando...");
     emailjs.send("service_mzyqj81", "template_d52csff", { 
         usuario: me, 
         conteudo: textoParaEnviar 
     }).then(() => {
-        alert("RELATÓRIO ENVIADO PARA O E-MAIL COM SUCESSO!");
+        alert("✅ RELATÓRIO ENVIADO COM SUCESSO!");
     }, (err) => {
-        alert("ERRO AO ENVIAR E-MAIL: " + JSON.stringify(err));
+        alert("❌ FALHA NO ENVIO: " + err.text);
     });
 }
 
 function apagarDadosComBackup() {
-    if(!confirm("Deseja FINALIZAR a viagem? O sistema vai baixar o arquivo, enviar e-mail com todos os BRs e limpar tudo.")) return;
-    if(prompt("Digite a senha master para limpar:") !== "0721") { alert("Senha incorreta!"); return; }
+    if(!confirm("Deseja FINALIZAR a viagem?")) return;
+    if(prompt("Senha Master:") !== "0721") { alert("Senha incorreta!"); return; }
 
-    // 1. Baixa o arquivo TXT
-    exportarRelatorioCompleto();
+    exportarRelatorioCompleto(); // Download TXT
 
-    // 2. Prepara o conteúdo detalhado e envia
-    let corpo = `FECHAMENTO TOTAL DE VIAGEM - ${me}\n\n`;
+    let corpo = `FECHAMENTO TOTAL - ${me}\n\n`;
     cidades.forEach(cid => {
         if(cid === 'ESPELHO') return;
         const bips = document.getElementById('txt-'+cid).value.toUpperCase().match(/BR[A-Z0-9]+/g) || [];
-        corpo += `=== ${cid} (${bips.length} bips) ===\n`;
-        corpo += bips.length > 0 ? bips.join('\n') : "Nenhum pacote";
-        corpo += `\n\n`;
+        corpo += `=== ${cid} (${bips.length} bips) ===\n${bips.join('\n')}\n\n`;
     });
+    
     enviarRelatorioAoEmail(corpo);
 
-    // 3. Limpa o Banco de Dados
     setTimeout(() => {
         cidades.forEach(c => {
             db.ref('monitor/'+c).set({texto: "", user: me});
-            const el = document.getElementById(`txt-${c}`);
-            if(el) el.value = "";
+            if(document.getElementById(`txt-${c}`)) document.getElementById(`txt-${c}`).value = "";
         });
-        alert("Banco de Dados Limpo!");
+        alert("SISTEMA LIMPO PARA NOVA VIAGEM.");
         processarTudo();
-    }, 2000);
+    }, 1500);
 }
 
 function enviarRelatorioMaster() {
@@ -273,9 +272,7 @@ function enviarRelatorioMaster() {
     cidades.forEach(cid => {
         if(cid === 'ESPELHO') return;
         const bips = document.getElementById('txt-'+cid).value.toUpperCase().match(/BR[A-Z0-9]+/g) || [];
-        corpo += `=== ${cid} (${bips.length} bips) ===\n`;
-        corpo += bips.length > 0 ? bips.join('\n') : "Vazio";
-        corpo += `\n\n`;
+        corpo += `=== ${cid} (${bips.length} bips) ===\n${bips.join('\n')}\n\n`;
     });
     enviarRelatorioAoEmail(corpo);
 }
@@ -312,7 +309,7 @@ function processarTudo() {
 }
 
 function exportarRelatorioCompleto() {
-    let rel = `RELATÓRIO FINAL - ${me}\n\n`;
+    let rel = `RELATÓRIO TXT - ${me}\n\n`;
     cidades.forEach(cid => {
         if(cid === 'ESPELHO') return;
         const bips = document.getElementById('txt-'+cid).value.toUpperCase().match(/BR[A-Z0-9]+/g) || [];
@@ -320,7 +317,7 @@ function exportarRelatorioCompleto() {
     });
     const blob = new Blob([rel], {type:'text/plain'});
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `Relatorio_${me}.txt`; a.click();
+    a.download = `Relatorio_Nevoeiro.txt`; a.click();
 }
 
 function conectarDados() {
@@ -337,7 +334,7 @@ function conectarDados() {
 function buscarCodigoGlobal() {
     const q = document.getElementById('global-search').value.toUpperCase().trim();
     if(!q) return;
-    cidades.forEach(c => { if(document.getElementById('txt-'+c).value.includes(q)) { alert("Em: " + c); mudarAba(c); } });
+    cidades.forEach(c => { if(document.getElementById('txt-'+c).value.includes(q)) { alert("Localizado em: " + c); mudarAba(c); } });
 }
 
 function entrarNoSistema() {
