@@ -104,10 +104,9 @@ const config = { apiKey: "AIzaSyDXtVIZkiGcTU_uvbsFEkZDDjTKoo6aWak", databaseURL:
 firebase.initializeApp(config);
 const db = firebase.database();
 
-// FORÇA A ATIVAÇÃO DE VIBRAÇÃO E SOM NO PRIMEIRO TOQUE
 function ativarSonsVibracao() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (navigator.vibrate) navigator.vibrate(10); // Vibração teste imperceptível
+    if ("vibrate" in navigator) navigator.vibrate(10);
 }
 
 function verificarLoginSalvo() {
@@ -126,6 +125,7 @@ function fazerLogin() {
 function logout() { localStorage.removeItem('userNevoeiro'); location.reload(); }
 
 async function toggleCamera() {
+    ativarSonsVibracao();
     const readerDiv = document.getElementById('reader');
     if (html5QrCode && html5QrCode.getState() === 2) { await html5QrCode.stop(); readerDiv.style.display = 'none'; return; }
     readerDiv.style.display = 'block';
@@ -135,13 +135,10 @@ async function toggleCamera() {
         if(code.startsWith("BR")) {
             let area = document.getElementById(`txt-${abaAtiva}`);
             if(!area.value.includes(code)) {
-                // VIBRAÇÃO FORTE
-                if (navigator.vibrate) navigator.vibrate([150, 50, 150]); 
-                
+                if ("vibrate" in navigator) navigator.vibrate(400); 
                 area.value += (area.value ? "\n" : "") + code;
                 area.dispatchEvent(new Event('input'));
                 verificarBip(code);
-                
                 const check = document.getElementById('check-overlay');
                 check.classList.remove('animate-check');
                 void check.offsetWidth;
@@ -157,7 +154,7 @@ function verificarBip(code) {
     } else {
         let cidE = "";
         for(let c in metaGlobalCidades) if(c !== 'ESPELHO' && metaGlobalCidades[c].has(code)) { cidE = c; break; }
-        falar(cidE ? `Atenção, pacote de ${cidE}` : "Atenção, pacote fora da viagem");
+        falar(cidE ? `Erro, pacote de ${cidE}` : "Fora da viagem");
     }
 }
 
@@ -171,281 +168,12 @@ function playSound() {
 }
 
 function falar(t) {
-    window.speechSynthesis.cancel(); // Para falas anteriores
+    window.speechSynthesis.cancel(); 
     const m = new SpeechSynthesisUtterance(t);
-    m.lang = 'pt-BR'; m.rate = 1.3; window.speechSynthesis.speak(m);
-}
-
-function inicializar() {
-    document.getElementById('tabContainer').innerHTML = "";
-    document.getElementById('textareas-container').innerHTML = "";
-    cidades.forEach(c => {
-        if((me === 'CRISOPOLIS' || me === 'RIO REAL') && (c !== me && c !== 'ESPELHO')) return;
-        const btn = document.createElement('button'); btn.className = 'tab-btn'; btn.id = `btn-${c}`; btn.innerText = c;
-        btn.onclick = () => mudarAba(c); document.getElementById('tabContainer').appendChild(btn);
-        const txt = document.createElement('textarea'); txt.id = `txt-${c}`;
-        txt.oninput = () => { db.ref('monitor/'+c).set({texto: txt.value, user: me}); processarTudo(); bipsRecentes.push(Date.now()); };
-        document.getElementById('textareas-container').appendChild(txt);
-    });
-    mudarAba(abaAtiva); conectarDados();
-}
-
-function mudarAba(c) {
-    if(c === 'ESPELHO' && prompt("Senha:") !== "0721") return;
-    abaAtiva = c;
-    document.querySelectorAll('.tab-btn, textarea').forEach(el => el.classList.remove('active'));
-    document.getElementById(`btn-${c}`).classList.add('active');
-    document.getElementById(`txt-${c}`).classList.add('active');
-    processarTudo();
-}
-
-function processarTudo() {
-    cidades.forEach(c => metaGlobalCidades[c] = new Set());
-    const espVal = document.getElementById('txt-ESPELHO').value;
-    espVal.split('\n').forEach(ln => {
-        let br = ln.match(/BR[A-Z0-9]+/i), num = ln.replace(/\D/g, "");
-        if(br) {
-            let code = br[0].toUpperCase();
-            for(let cid in mapaCeps) mapaCeps[cid].forEach(cep => { if(num.includes(cep)) metaGlobalCidades[cid].add(code); });
-        }
-    });
-    if(abaAtiva !== 'ESPELHO') {
-        const meuTxt = document.getElementById('txt-'+abaAtiva).value.toUpperCase();
-        const bips = meuTxt.match(/BR[A-Z0-9]+/g) || [];
-        const setBips = new Set(bips);
-        let corr = 0, err = 0;
-        setBips.forEach(code => { if(metaGlobalCidades[abaAtiva].has(code)) corr++; else err++; });
-        document.getElementById('count-v').innerText = `${corr} / ${metaGlobalCidades[abaAtiva].size}`;
-        document.getElementById('count-p').innerText = metaGlobalCidades[abaAtiva].size - corr;
-        document.getElementById('count-errados').innerText = err;
-    }
-    const ag = Date.now(); bipsRecentes = bipsRecentes.filter(t => ag - t < 3600000);
-    document.getElementById('count-ritmo').innerText = bipsRecentes.length;
-}
-
-function exportarRelatorioCompleto() {
-    let rel = `RELATÓRIO - ${me}\n\n`;
-    cidades.forEach(cid => {
-        if(cid === 'ESPELHO') return;
-        const bips = document.getElementById('txt-'+cid).value.toUpperCase().match(/BR[A-Z0-9]+/g) || [];
-        rel += `=== ${cid} ===\n${bips.join('\n')}\n\n`;
-    });
-    const blob = new Blob([rel], {type:'text/plain'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `Relatorio_${me}.txt`; a.click();
-}
-
-function enviarRelatorioMaster() {
-    let corpo = `MASTER - ${me}\n`;
-    cidades.forEach(cid => {
-        if(cid === 'ESPELHO') return;
-        const bips = (document.getElementById('txt-'+cid).value.toUpperCase().match(/BR[A-Z0-9]+/g) || []).length;
-        corpo += `${cid}: ${bips} bips.\n`;
-    });
-    emailjs.send("service_mzyqj81", "template_d52csff", { usuario: me, conteudo: corpo }).then(() => alert("Enviado!"));
-}
-
-function conectarDados() {
-    db.ref('monitor').on('value', snap => {
-        const d = snap.val();
-        cidades.forEach(c => {
-            const el = document.getElementById(`txt-${c}`);
-            if(el && d && d[c] && document.activeElement !== el) el.value = d[c].texto;
-        });
-        processarTudo();
-    });
-}
-
-function buscarCodigoGlobal() {
-    const q = document.getElementById('global-search').value.toUpperCase().trim();
-    if(!q) return;
-    cidades.forEach(c => { if(document.getElementById('txt-'+c).value.includes(q)) { alert("Em: " + c); mudarAba(c); } });
-}
-
-function entrarNoSistema() {
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('main-content').style.display = 'block';
-    abaAtiva = (me === 'CRISOPOLIS' || me === 'RIO REAL') ? me : 'APORA-ITAMIRA';
-    inicializar();
-}
-</script>
-</body>
-</html><!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NEVOEIRO | Gestão Blindada</title>
-    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-    
-    <script> (function() { emailjs.init("-XFJQuFDR2aujgOhl"); })(); </script>
-
-    <style>
-        :root {
-            --primary: #fbbf24; --success: #10b981; --danger: #ef4444; --info: #60a5fa;
-            --bg-glass: rgba(15, 23, 42, 0.95); --border: rgba(255, 255, 255, 0.1);
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
-        body { margin: 0; min-height: 100vh; color: #fff; background: #000; display: flex; flex-direction: column; align-items: center; overflow-x: hidden; }
-        .bg-fixed { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8)), url('https://images.pexels.com/photos/4483610/pexels-photo-4483610.jpeg') center/cover; z-index: -1; }
-        
-        #check-overlay { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0); font-size: 150px; color: var(--success); z-index: 9999; pointer-events: none; opacity: 0; }
-        .animate-check { animation: scaleCheck 0.4s ease-out forwards; }
-        @keyframes scaleCheck { 0% { transform: translate(-50%, -50%) scale(0); opacity: 0; } 50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
-
-        #reader { width: 95%; max-width: 500px; margin: 10px auto; display: none; border-radius: 15px; overflow: hidden; border: 2px solid var(--primary); background: #000; }
-        .search-container { width: 90%; max-width: 1100px; margin-top: 15px; display: flex; gap: 10px; z-index: 10; }
-        .search-input { flex: 1; background: var(--bg-glass); border: 1px solid var(--border); padding: 12px; border-radius: 10px; color: #fff; font-size: 16px; outline: none; }
-        .search-btn { background: var(--primary); border: none; padding: 0 15px; border-radius: 10px; font-weight: 800; cursor: pointer; color: #000; }
-
-        #login-screen { margin-top: 10vh; background: var(--bg-glass); padding: 2.5rem; border-radius: 2rem; border: 1px solid var(--border); width: 90%; max-width: 400px; text-align: center; z-index: 10; }
-        #main-content { display: none; width: 100%; max-width: 1100px; padding: 10px; text-align: center; }
-
-        .stats-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 1rem; width: 100%; }
-        .stat-card { background: var(--bg-glass); padding: 0.8rem; border-radius: 1.2rem; border: 1px solid var(--border); }
-        .stat-val { font-size: 1.1rem; font-weight: 800; display: block; }
-        .stat-label { font-size: 0.55rem; color: #94a3b8; text-transform: uppercase; }
-
-        .actions-bar { background: var(--bg-glass); padding: 15px; border-radius: 1rem; border: 1px solid var(--border); margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
-        .btn-action { background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: #fff; padding: 10px 15px; border-radius: 8px; font-size: 0.7rem; font-weight: 800; cursor: pointer; text-transform: uppercase; }
-
-        .tabs { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; }
-        .tab-btn { background: rgba(15, 23, 42, 0.6); padding: 12px 18px; border: 1px solid var(--border); border-radius: 10px 10px 0 0; color: #94a3b8; cursor: pointer; font-size: 0.75rem; white-space: nowrap; }
-        .tab-btn.active { background: var(--bg-glass); color: var(--primary); border-top: 2px solid var(--primary); }
-        textarea { width: 100%; height: 350px; resize: none; border-radius: 0 1rem 1rem 1rem; font-size: 16px; padding: 15px; background: rgba(0,0,0,0.6); color: #fff; border: 1px solid var(--border); display: none; outline: none; }
-        textarea.active { display: block; }
-    </style>
-</head>
-<body onload="verificarLoginSalvo()" onclick="ativarSonsVibracao()">
-
-<div id="check-overlay">✔</div>
-<div class="bg-fixed"></div>
-
-<div id="login-screen">
-    <h1 style="color: var(--primary); margin-bottom: 1.5rem; font-weight: 800;">NEVOEIRO</h1>
-    <select id="user-select" style="width:100%; margin-bottom:12px; background:#000; color:#fff; border-radius:10px; padding:12px; font-size: 16px;">
-        <option value="" disabled selected>USUÁRIO</option>
-        <option value="THIAGO">THIAGO</option>
-        <option value="SAMUEL">SAMUEL</option>
-        <option value="BRUNO">BRUNO</option>
-        <option value="ANDREY">ANDREY</option>
-        <option value="ALEXANDRE">ALEXANDRE</option>
-        <option value="CRISOPOLIS">CRISOPOLIS</option>
-        <option value="RIO REAL">RIO REAL</option>
-    </select>
-    <input type="password" id="pass-input" placeholder="SENHA" style="width:100%; margin-bottom:20px; padding:12px; background:#000; border:1px solid var(--border); color:#fff; border-radius:10px; font-size: 16px;">
-    <button onclick="fazerLogin()" style="width:100%; padding:15px; background:var(--primary); border:none; border-radius:12px; font-weight:800; cursor:pointer; color:#000;">ENTRAR</button>
-</div>
-
-<div id="main-content">
-    <div class="search-container">
-        <input type="text" id="global-search" class="search-input" placeholder="Buscar código...">
-        <button class="search-btn" onclick="toggleCamera()">📷</button>
-        <button class="search-btn" onclick="buscarCodigoGlobal()">OK</button>
-    </div>
-    <div id="reader"></div>
-
-    <div class="stats-container" style="margin-top: 20px;">
-        <div class="stat-card"><span class="stat-label">Viagem</span><span class="stat-val" id="count-v" style="color:var(--success)">0 / 0</span></div>
-        <div class="stat-card"><span class="stat-label">Pendentes</span><span class="stat-val" id="count-p" style="color:var(--info)">0</span></div>
-        <div class="stat-card"><span class="stat-label">Fora da Viagem</span><span class="stat-val" id="count-errados" style="color:var(--danger)">0</span></div>
-        <div class="stat-card"><span class="stat-label">Ritmo/Hora</span><span class="stat-val" id="count-ritmo" style="color:#a855f7">0</span></div>
-    </div>
-
-    <div class="actions-bar">
-        <button class="btn-action" style="background:var(--success); color:#000" onclick="enviarRelatorioMaster()">📧 MASTER</button>
-        <button class="btn-action" style="color:var(--info)" onclick="exportarRelatorioCompleto()">📦 TXT</button>
-        <button class="btn-action" style="background:var(--danger); color:#fff" onclick="logout()">🚪 SAIR</button>
-    </div>
-
-    <div class="tabs" id="tabContainer"></div>
-    <div id="textareas-container"></div>
-</div>
-
-<script>
-let audioCtx = null, html5QrCode = null, me = "", abaAtiva = "", bipsRecentes = [];
-const mapaCeps = { "CONDE": ["48300000"], "CRISOPOLIS": ["48480000", "48483000"], "ACAJUTIBA": ["48360000"], "APORA-ITAMIRA": ["48350000", "48355000"], "JANDAIRA": ["48310000"], "RIO REAL": ["48330000"] };
-const cidades = [...Object.keys(mapaCeps), 'ESPELHO'];
-let metaGlobalCidades = {};
-
-const config = { apiKey: "AIzaSyDXtVIZkiGcTU_uvbsFEkZDDjTKoo6aWak", databaseURL: "https://base-de-dados-nevoeiro-default-rtdb.firebaseio.com", projectId: "base-de-dados-nevoeiro" };
-firebase.initializeApp(config);
-const db = firebase.database();
-
-// FORÇA A ATIVAÇÃO DE VIBRAÇÃO E SOM NO PRIMEIRO TOQUE
-function ativarSonsVibracao() {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (navigator.vibrate) navigator.vibrate(10); // Vibração teste imperceptível
-}
-
-function verificarLoginSalvo() {
-    const salvo = localStorage.getItem('userNevoeiro');
-    if (salvo) { me = salvo; entrarNoSistema(); }
-}
-
-function fazerLogin() {
-    const u = document.getElementById('user-select').value, p = document.getElementById('pass-input').value;
-    const logins = { "THIAGO":"270219", "SAMUEL":"2804", "BRUNO":"1010", "ALEXANDRE":"0000", "CRISOPOLIS":"2525", "RIO REAL":"3510" };
-    if(logins[u] === p) {
-        me = u; localStorage.setItem('userNevoeiro', u); entrarNoSistema();
-    } else alert("Senha incorreta!");
-}
-
-function logout() { localStorage.removeItem('userNevoeiro'); location.reload(); }
-
-async function toggleCamera() {
-    const readerDiv = document.getElementById('reader');
-    if (html5QrCode && html5QrCode.getState() === 2) { await html5QrCode.stop(); readerDiv.style.display = 'none'; return; }
-    readerDiv.style.display = 'block';
-    html5QrCode = new Html5Qrcode("reader");
-    await html5QrCode.start({ facingMode: "environment" }, { fps: 25, qrbox: 250 }, (text) => {
-        let code = text.toUpperCase().trim();
-        if(code.startsWith("BR")) {
-            let area = document.getElementById(`txt-${abaAtiva}`);
-            if(!area.value.includes(code)) {
-                // VIBRAÇÃO FORTE
-                if (navigator.vibrate) navigator.vibrate([150, 50, 150]); 
-                
-                area.value += (area.value ? "\n" : "") + code;
-                area.dispatchEvent(new Event('input'));
-                verificarBip(code);
-                
-                const check = document.getElementById('check-overlay');
-                check.classList.remove('animate-check');
-                void check.offsetWidth;
-                check.classList.add('animate-check');
-            }
-        }
-    });
-}
-
-function verificarBip(code) {
-    if(metaGlobalCidades[abaAtiva]?.has(code)) {
-        playSound(); 
-    } else {
-        let cidE = "";
-        for(let c in metaGlobalCidades) if(c !== 'ESPELHO' && metaGlobalCidades[c].has(code)) { cidE = c; break; }
-        falar(cidE ? `Atenção, pacote de ${cidE}` : "Atenção, pacote fora da viagem");
-    }
-}
-
-function playSound() {
-    if (!audioCtx) return;
-    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
-    osc.connect(gain); gain.connect(audioCtx.destination);
-    osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
-    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-    osc.start(); osc.stop(audioCtx.currentTime + 0.1);
-}
-
-function falar(t) {
-    window.speechSynthesis.cancel(); // Para falas anteriores
-    const m = new SpeechSynthesisUtterance(t);
-    m.lang = 'pt-BR'; m.rate = 1.3; window.speechSynthesis.speak(m);
+    m.lang = 'pt-BR'; 
+    m.rate = 1.7; // VELOCIDADE MÁXIMA PARA NÃO ATRASAR
+    m.pitch = 1.0;
+    window.speechSynthesis.speak(m);
 }
 
 function inicializar() {
