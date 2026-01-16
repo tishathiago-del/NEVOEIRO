@@ -210,7 +210,7 @@ function lidarComAlteracaoManual(e, cidadeAlvo) {
         if(me === "THIAGO" || me === "SAMUEL") {
             let motivo = prompt("ATENÇÃO: Você está removendo pacotes CORRETOS (" + códigosRemovidos.join(", ") + "). Digite o motivo:");
             if(motivo && motivo.trim().length > 3) {
-                enviarAlertaEmail(me, cidadeAlvo, códigosRemovidos.join(", "), motivo);
+                enviarRelatorioAoEmail(`MOTIVO DE EXCLUSÃO MANUAL\nOperador: ${me}\nLocal: ${cidadeAlvo}\nPacotes: ${códigosRemovidos.join(", ")}\nMotivo: ${motivo}`);
                 db.ref('monitor/'+cidadeAlvo).set({texto: novoTexto, user: me});
             } else {
                 alert("Ação negada. Justificativa obrigatória.");
@@ -225,10 +225,16 @@ function lidarComAlteracaoManual(e, cidadeAlvo) {
     }
 }
 
-function enviarAlertaEmail(quem, onde, oque, porque) {
+// FUNÇÃO CENTRALIZADA DE ENVIO DE E-MAIL
+function enviarRelatorioAoEmail(textoParaEnviar) {
+    console.log("Iniciando envio para o EmailJS...");
     emailjs.send("service_mzyqj81", "template_d52csff", { 
-        usuario: quem, 
-        conteudo: `EXCLUSÃO MANUAL: ${oque}\nLocal: ${onde}\nMotivo: ${porque}` 
+        usuario: me, 
+        conteudo: textoParaEnviar 
+    }).then(() => {
+        alert("RELATÓRIO ENVIADO PARA O E-MAIL COM SUCESSO!");
+    }, (err) => {
+        alert("ERRO AO ENVIAR E-MAIL: " + JSON.stringify(err));
     });
 }
 
@@ -239,18 +245,39 @@ function apagarDadosComBackup() {
     // 1. Baixa o arquivo TXT
     exportarRelatorioCompleto();
 
-    // 2. Envia o relatório Master detalhado por e-mail
-    enviarRelatorioMaster();
+    // 2. Prepara o conteúdo detalhado e envia
+    let corpo = `FECHAMENTO TOTAL DE VIAGEM - ${me}\n\n`;
+    cidades.forEach(cid => {
+        if(cid === 'ESPELHO') return;
+        const bips = document.getElementById('txt-'+cid).value.toUpperCase().match(/BR[A-Z0-9]+/g) || [];
+        corpo += `=== ${cid} (${bips.length} bips) ===\n`;
+        corpo += bips.length > 0 ? bips.join('\n') : "Nenhum pacote";
+        corpo += `\n\n`;
+    });
+    enviarRelatorioAoEmail(corpo);
 
     // 3. Limpa o Banco de Dados
-    cidades.forEach(c => {
-        db.ref('monitor/'+c).set({texto: "", user: me});
-        const el = document.getElementById(`txt-${c}`);
-        if(el) el.value = "";
-    });
+    setTimeout(() => {
+        cidades.forEach(c => {
+            db.ref('monitor/'+c).set({texto: "", user: me});
+            const el = document.getElementById(`txt-${c}`);
+            if(el) el.value = "";
+        });
+        alert("Banco de Dados Limpo!");
+        processarTudo();
+    }, 2000);
+}
 
-    alert("Viagem finalizada com sucesso!");
-    processarTudo();
+function enviarRelatorioMaster() {
+    let corpo = `RELATÓRIO MASTER ATUALIZADO - ${me}\n\n`;
+    cidades.forEach(cid => {
+        if(cid === 'ESPELHO') return;
+        const bips = document.getElementById('txt-'+cid).value.toUpperCase().match(/BR[A-Z0-9]+/g) || [];
+        corpo += `=== ${cid} (${bips.length} bips) ===\n`;
+        corpo += bips.length > 0 ? bips.join('\n') : "Vazio";
+        corpo += `\n\n`;
+    });
+    enviarRelatorioAoEmail(corpo);
 }
 
 function mudarAba(c) {
@@ -282,12 +309,10 @@ function processarTudo() {
         document.getElementById('count-p').innerText = (metaGlobalCidades[abaAtiva]?.size || 0) - corr;
         document.getElementById('count-errados').innerText = bips.length - corr;
     }
-    const ag = Date.now(); bipsRecentes = bipsRecentes.filter(t => ag - t < 3600000);
-    document.getElementById('count-ritmo').innerText = bipsRecentes.length;
 }
 
 function exportarRelatorioCompleto() {
-    let rel = `RELATÓRIO FINAL - ${me} - ${new Date().toLocaleString()}\n\n`;
+    let rel = `RELATÓRIO FINAL - ${me}\n\n`;
     cidades.forEach(cid => {
         if(cid === 'ESPELHO') return;
         const bips = document.getElementById('txt-'+cid).value.toUpperCase().match(/BR[A-Z0-9]+/g) || [];
@@ -295,25 +320,7 @@ function exportarRelatorioCompleto() {
     });
     const blob = new Blob([rel], {type:'text/plain'});
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `Final_Nevoeiro_${me}.txt`; a.click();
-}
-
-function enviarRelatorioMaster() {
-    let corpo = `RELATÓRIO DETALHADO - ${me}\nFECHAMENTO: ${new Date().toLocaleString()}\n\n`;
-    cidades.forEach(cid => {
-        if(cid === 'ESPELHO') return;
-        const bips = document.getElementById('txt-'+cid).value.toUpperCase().match(/BR[A-Z0-9]+/g) || [];
-        corpo += `=== ${cid} (${bips.length} bips) ===\n`;
-        corpo += bips.length > 0 ? bips.join('\n') : "Nenhum pacote bipado";
-        corpo += `\n\n`;
-    });
-    
-    emailjs.send("service_mzyqj81", "template_d52csff", { 
-        usuario: me, 
-        conteudo: corpo 
-    }).then(() => {
-        console.log("Relatório completo enviado para o e-mail.");
-    });
+    a.download = `Relatorio_${me}.txt`; a.click();
 }
 
 function conectarDados() {
